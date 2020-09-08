@@ -1,1 +1,37 @@
-# datascience_Berkely
+# Unit 1: Excel
+
+## Overview
+
+### Slideshows
+
+* [1.1 Zen Of Data](https://drive.google.com/open?id=1HH3JSR1lc2thAZNBq_TIC56Soi830DMmpHMA2EU_iIY)
+* [1.2 Egad Excel](https://drive.google.com/open?id=1mST2NbkvWet_eAN2NM7KH13PFZVeWud-4mqTgTXTRWw)
+
+### Homework
+
+* [Homework Instructions](../../02-Homework/01-Excel/Instructions/README.md)
+
+### Key Activities
+
+#### Day 2
+
+* Instructor Do: Formatting
+* Student Do: McDonald's Formatting
+* Instructor Do: Review McDonald's Formatting
+* Instructor Do: Pivot Tables
+* Student Do: Top Songs Pivot Table
+* Instructor Do: Review Top Songs Pivot
+* Instructor Do: Lookups
+
+#### Day 3
+
+* Instructor Do: Basic Charting
+* Student Do: The Line and Bar Grades
+* Student Do: Video Game Sales
+* Instructor Do: Moving Averages
+* Student Do: Golfing Targets
+* Instructor Do: Regression
+
+- - -
+
+© 2019 Trilogy Education Services
