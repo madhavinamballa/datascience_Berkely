@@ -1,0 +1,598 @@
+/*
+ * Write basic to intermediate level SQL
+ * Subqueries!
+ * One more kind of join
+ * Table design and database management
+*/
+
+# NTS: cd /usr/local/mysql/bin && ./mysql -u root -p (use your Workbench password) &&
+# SOURCE /Users/chuyi/Desktop/Teaching/10.3/sakila-db/sakila-schema.sql
+
+
+
+# Aside: aliasing tables
+
+
+# 2
+
+USE sakila;
+
+SELECT address, city
+FROM address a
+JOIN city c
+ON (a.city_id = c.city_id);
+
+ # Alternate form: USING
+SELECT address, city
+FROM address
+JOIN city
+USING (city_id);
+
+
+
+
+# 3
+
+-- USE sakila;
+DESCRIBE film;
+
+SELECT * FROM film LIMIT 10;
+
+SELECT COUNT(film_id)
+FROM film;
+
+SELECT COUNT(DISTINCT film_id)
+FROM film;
+
+SELECT COUNT(DISTINCT film_id) AS total_films
+FROM film;
+
+SELECT rating, COUNT(film_id) AS "Total films"
+FROM film
+GROUP BY rating;
+
+SELECT AVG(rental_duration) AS "Average rental period"
+FROM film;
+
+SELECT * FROM film;
+
+SELECT rental_duration, AVG(rental_rate) AS "Average rental rate"
+FROM film
+GROUP BY rental_duration;
+
+SELECT rental_duration, AVG(rental_rate) AS "Average rental rate"
+FROM film
+WHERE rental_duration < 7
+GROUP BY rental_duration;
+
+SELECT rental_duration, AVG(rental_rate) AS avg_rental_rate
+FROM film
+-- WHERE avg_rental_rate > 3  # cannot do this!
+GROUP BY rental_duration;
+-- HAVING AVG(rental_rate)  > 3;
+-- HAVING avg_rental_rate > 3;  # Using "Average rental rate" can cause problems.
+-- HAVING rental_duration > 3;  # Still works, but not idiomatic.
+
+# 5
+
+SELECT * FROM film;
+
+-- 1. What is the average cost to rent a film in the Sakila stores?
+SELECT AVG(rental_rate) AS 'Average rental rate'
+FROM film;
+
+-- 2. What is the average rental cost of films by rating? On average, what is the cheapest rating of films to rent? Most expensive?
+SELECT rating, AVG(rental_rate) AS 'Average rental rate' -- , MIN(rental_rate), MAX(rental_rate)
+FROM film
+GROUP BY rating;
+
+-- 3. How much would it cost to replace all the films in the database?
+SELECT SUM(replacement_cost) AS 'Total replacement cost'
+FROM film;
+
+-- 4. How much would it cost to replace all the films in each ratings category?
+SELECT rating, SUM(replacement_cost) AS 'Replacement cost'
+FROM film
+GROUP BY rating;
+
+-- 5. How long is the longest movie in the database? The shortest?
+SELECT MAX(length)
+FROM film;
+
+-- 6. For customers with id numbers 1 through 4, display the total amount they have paid.
+SELECT customer_id, SUM(amount)
+FROM payment
+WHERE customer_id < 5
+GROUP BY customer_id;
+
+
+
+
+# 6
+
+# Goal: Find inventory information about film "Early Home"
+
+# Method 1:
+
+SELECT title, film_id
+FROM film
+WHERE title = "Early Home";
+
+SELECT *  # FWIW, readability dictates *s be used infrequently
+FROM inventory
+WHERE film_id = 268;   # based on above
+
+# Method 2: JOINs (fast)
+
+SELECT i.inventory_id, i.film_id, i.store_id
+FROM inventory i
+JOIN film f
+USING (film_id)  -- Equivalently: ON (i.film_id = f.film_id)
+WHERE f.title = "Early Home";
+
+# Method 3: Subquery (slower)
+
+SELECT *
+FROM inventory
+WHERE film_id IN
+(
+	SELECT film_id
+    FROM film
+    WHERE title = "Early Home"
+);
+
+
+
+
+
+# 8
+
+-- Question 1
+
+SELECT city, city_id
+FROM city
+WHERE city IN ('Qalyub', 'Qinhuangdao', 'Qomsheh', 'Quilmes');
+
+
+-- Question 2
+
+SELECT district
+FROM address
+WHERE city_id IN
+(
+  SELECT city_id
+  FROM city
+  WHERE city IN ('Qalyub', 'Qinhuangdao', 'Qomsheh', 'Quilmes')
+);
+
+
+-- Bonus
+
+SELECT first_name, last_name
+FROM customer
+WHERE address_id IN
+(
+  SELECT address_id
+  FROM address a
+  WHERE city_id IN
+  (
+    SELECT city_id
+    FROM city 
+    WHERE city LIKE 'Q%'
+  ) 
+);
+
+
+
+
+
+# 9: Views
+
+CREATE VIEW total_sales AS
+SELECT s.store_id, SUM(amount) AS Gross
+FROM payment p
+JOIN rental r
+ON (p.rental_id = r.rental_id)
+JOIN inventory i
+ON (i.inventory_id = r.inventory_id)
+JOIN store s
+ON (s.store_id = i.store_id)
+GROUP BY s.store_id;
+
+SELECT * FROM total_sales;
+
+DROP VIEW total_sales;
+
+
+
+
+
+
+# 11
+
+DROP VIEW num_copies_of_titles;
+
+CREATE VIEW num_copies_of_titles AS
+SELECT title, (
+	SELECT COUNT(*) FROM inventory WHERE film.film_id = inventory.film_id
+) AS 'Number of Copies'
+FROM film;
+
+SELECT * FROM num_copies_of_titles;
+
+-- SELECT * FROM inventory;
+
+# Simpler way to write the query above.
+SELECT f.title, COUNT(*)
+FROM film f
+JOIN inventory USING (film_id)
+GROUP BY f.title;
+
+
+
+
+# 12: left joins and nulls
+
+SELECT *
+FROM film f
+LEFT OUTER JOIN film_actor fa  # this is a "left join"
+ON (f.film_id = fa.film_id)
+WHERE fa.film_id IS NULL;
+
+
+
+
+
+
+
+# 13
+
+# Using %
+SELECT *
+FROM actor
+WHERE last_name LIKE 'Will%';
+
+# Using _
+SELECT *
+FROM actor
+WHERE lower(first_name) LIKE '_an';
+
+
+
+
+# 14: How many people have rented the film "Blanket Beverly"?
+
+# Schema: https://github.com/coding-boot-camp/DataViz-Lesson-Plans/blob/master/01-Lesson-Plans/10-SQL/3/Activities/05-Ins_Revisit_Subqueries/Images/sakila_schema.svg
+
+SELECT COUNT(*)
+FROM customer
+WHERE customer_id IN
+(
+ SELECT customer_id
+ FROM payment
+ WHERE rental_id IN
+ (
+  SELECT rental_id
+  FROM rental
+  WHERE inventory_id IN
+  (
+   SELECT inventory_id
+   FROM inventory
+   WHERE film_id IN
+   (
+    SELECT film_id
+    FROM film
+    WHERE title = 'Blanket Beverly'
+   )
+  )
+ )
+);
+
+
+
+
+
+
+
+
+
+
+# 16
+
+-- Mine the Subqueries
+
+-- Instructions
+
+-- 1. Using subqueries, identify all actors who appear in the film _Alter Victory_ in the `sakila` database.
+
+SELECT first_name, last_name
+FROM actor
+WHERE actor_id IN
+(
+  SELECT actor_id
+  FROM film_actor
+  WHERE film_id IN
+  (
+   SELECT film_id
+   FROM film
+   WHERE title = 'ALTER VICTORY'
+  )
+);
+
+
+-- 2. Using subqueries, display the titles of films that were rented out by an employee named Jon Stephens.
+
+SELECT title
+	FROM film
+	WHERE film_id
+	IN (
+		SELECT film_id
+			FROM inventory
+			WHERE inventory_id
+			IN (
+				SELECT inventory_id
+					FROM rental
+					WHERE staff_id
+						IN (
+							SELECT staff_id
+								FROM staff
+								WHERE last_name = "Stephens" AND first_name = "Jon"
+							)
+				)
+		);
+
+
+-- Bonus
+
+-- For problem No. 2, refine the query to select for films that were rented on May 31st, and whose titles begin with the letter **C**.
+-- Hint: you may wish to look into using **wildcards** in MySQL.
+
+SELECT title
+	FROM film
+    WHERE film_id
+    IN (
+      SELECT film_id
+        FROM inventory
+        WHERE inventory_id
+        IN (
+          SELECT inventory_id
+            FROM rental
+            WHERE staff_id
+            IN (
+              SELECT staff_id
+                FROM staff
+                WHERE first_name = "Jon" AND last_name = "Stephens"
+              )
+              AND rental_date LIKE '%05-31%'
+            )
+              )
+            AND title LIKE 'C%';
+            
+            
+            
+            
+            
+            
+            
+            
+            
+# 18: Foreign keys
+/*
+* Foreign keys create a link between tables.
+* A foreign key prevents invalid data from being entered into a column. The data being entered has to be a value from the referenced column.
+*/
+
+DROP DATABASE animals_db;
+CREATE DATABASE animals_db;
+USE animals_db;
+DROP TABLE animals_all;
+
+CREATE TABLE animals_all (
+ id INTEGER(11) AUTO_INCREMENT NOT NULL,
+ animal_species VARCHAR(30) NOT NULL,
+ owner_name VARCHAR(30) NOT NULL,
+ PRIMARY KEY (id)
+);
+
+SELECT * FROM animals_all;
+
+INSERT INTO animals_all (animal_species, owner_name) 
+VALUES 
+("Dog", "Bob"),
+("Fish", "Bob"),
+("Cat", "Kelly"),
+("Dolphin", "Aquaman");
+
+SELECT * FROM animals_all;
+
+CREATE TABLE animals_location (
+ id INTEGER(11) AUTO_INCREMENT NOT NULL,
+ location VARCHAR(30) NOT NULL,
+ animal_id INTEGER(10) NOT NULL,
+ PRIMARY KEY (id),
+ FOREIGN KEY FIRST (animal_id) REFERENCES animals_all(id) 
+);
+
+DROP TABLE animals_location_two;
+CREATE TABLE animals_location_two (
+ id INTEGER(11) AUTO_INCREMENT NOT NULL,
+ location VARCHAR(30) NOT NULL,
+ PRIMARY KEY (id)
+);
+
+-- ALTER TABLE animals_location_two
+-- ADD COLUMN PersonID INT;
+
+-- ALTER TABLE animals_location_two
+-- ADD FOREIGN KEY FIRST (PersonID) REFERENCES animals_all(id);
+
+SELECT * FROM animals_location_two;
+
+INSERT INTO animals_location (location, animal_id) VALUES ("Doghouse", 1);
+INSERT INTO animals_location (location, animal_id) VALUES ("Fish tank", 2);
+INSERT INTO animals_location (location, animal_id) VALUES ("Bed", 3);
+INSERT INTO animals_location (location, animal_id) VALUES ("Ocean", 4);
+
+SELECT * FROM animals_location;
+SELECT animal_id, id, location FROM animals_location;
+
+INSERT INTO animals_location (location, animal_id) VALUES ("Home", 5);
+# Error Code: 1452. Cannot add or update a child row: a foreign key constraint fails (`animals_db`.`animals_location`, CONSTRAINT `animals_location_ibfk_1` FOREIGN KEY (`animal_id`) REFERENCES `animals_all` (`id`))
+
+INSERT INTO animals_all (animal_species, owner_name)
+VALUES
+("Dog", "Maple");
+
+# Now it's fine:
+INSERT INTO animals_location (location, animal_id) VALUES ("Home", 5);
+
+# By the way, this still works
+INSERT INTO animals_location (location, animal_id) VALUES ("Ocean", 4);
+
+SELECT * FROM animals_location;
+
+# 20
+
+-- Let's create a new database
+DROP DATABASE customer_data;
+CREATE DATABASE customer_data;
+
+USE customer_data;
+
+-- Let's make a new table
+CREATE TABLE customer (
+    id INTEGER(11) AUTO_INCREMENT NOT NULL,
+    first_name VARCHAR(30) NOT NULL,
+    last_name VARCHAR(30) NOT NULL,
+    email VARCHAR(30) NOT NULL,
+    phone VARCHAR(30) NOT NULL,
+    PRIMARY KEY (id)
+);
+
+-- And then populate that table
+INSERT INTO customer (first_name, last_name, email, phone)
+VALUES
+("Bob", "Smith", "bobsmith@email.com", "435-344-2245"),
+("Jane", "Davidson", "jdavids@email.com", "332-776-4678"),
+("Jimmy", "Bell", "jimmyb@email.com", "221-634-7753"),
+("Stephanie", "Duke", "sd@email.com", "445-663-5799");
+
+-- View our table
+SELECT * FROM customer;
+
+-- Let's create a second table with a foreign key that references the first table
+CREATE TABLE customer_email (
+    id INTEGER(11) AUTO_INCREMENT NOT NULL,
+    email VARCHAR(30) NOT NULL,
+    customer_id INTEGER(10) NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (customer_id) REFERENCES customer(id) -- This is where the magic happens
+);
+
+# Create a table using:
+-- CREATE TABLE <table_name> AS
+-- SELECT ...
+-- FROM ...
+-- etc.
+
+-- Let's populate the second table
+INSERT INTO customer_email (email, customer_id)
+SELECT email, id
+FROM customer;
+
+-- View our second table
+SELECT * FROM customer_email;
+
+-- Let's create a third table with a foreign key that references the first table
+CREATE TABLE customer_phone (
+    id INTEGER(11) AUTO_INCREMENT NOT NULL,
+    phone VARCHAR(30) NOT NULL,
+    customer_id INTEGER(10) NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (customer_id) REFERENCES customer(id) -- This is where the magic happens
+);
+
+-- Let's populate the third table
+INSERT INTO customer_phone (phone, customer_id)
+SELECT phone, id
+FROM customer;
+
+-- View our third table
+SELECT * FROM customer_phone;
+
+
+
+
+
+
+
+
+# 21  - *****
+
+USE sakila;
+
+-- Union of customers
+SELECT actor_id AS id, first_name
+FROM actor
+WHERE actor_id between 1 and 5
+
+UNION
+
+SELECT customer_id AS id, first_name
+FROM customer
+WHERE customer_id between 6 and 10;
+
+-- Film titles that begin with "AC"
+SELECT title
+FROM film
+WHERE title LIKE 'AC%';
+
+-- Union of film titles
+SELECT title
+FROM film
+WHERE title LIKE 'AC%'
+UNION
+SELECT title
+FROM film_text;
+
+-- Include duplicate rows in the union
+SELECT title
+FROM film
+WHERE title LIKE 'AC%'
+UNION ALL
+SELECT title
+FROM film_text;
+
+
+
+
+# 23
+
+-- Question 1
+
+SELECT COUNT(*) AS c
+FROM city
+UNION
+SELECT COUNT(*)
+FROM country;
+
+
+-- Question 2
+
+SELECT customer_id
+FROM customer
+WHERE address_id IN
+(
+  SELECT address_id
+  FROM address
+  WHERE city_id IN
+  (
+    SELECT city_id
+    FROM city
+    WHERE city = 'London'
+  )
+)
+UNION ALL
+SELECT id  AS id # Though this is labeled "id," the results are ultimately labeled as customer_id.
+FROM customer_list
+WHERE city = 'London';
